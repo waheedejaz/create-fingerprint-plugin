@@ -29,41 +29,92 @@ import hudson.model.FreeStyleProject;
 import hudson.model.FreeStyleBuild;
 import hudson.tasks.Fingerprinter;
 import hudson.tasks.Fingerprinter.FingerprintAction;
-import org.jvnet.hudson.test.HudsonTestCase;
+import org.junit.Test;
+import org.junit.Before;
+import static hudson.cli.CLICommandInvoker.Matcher.*;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.*;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
+import org.junit.Rule;
+import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.TestBuilder;
 import java.util.Collection;
 import java.io.*;
 
 /**
  * @author Marc Sanfacon
  */
-public class CreateFingerprintTest extends HudsonTestCase {
-    public void testConfigRoundtrip() throws Exception {
+public class CreateFingerprintTest {
+    
+    @Rule
+    public JenkinsRule j = new JenkinsRule();
+
+    private static final String JOB1 = "job1";
+
+    private FreeStyleProject createJob(String jobName) {
+        try {
+            final FreeStyleProject job = j.createFreeStyleProject(jobName);
+            return job;
+        } catch (Exception ex) {
+            assertThat("Unexpected exception: " + ex, false);
+        }
+        return null;
+    }
+
+    private FreeStyleBuild assertStatusAndGetBuild(FreeStyleProject job) {
+        try {
+            FreeStyleBuild build = j.assertBuildStatusSuccess(job.scheduleBuild2(0));
+            return build;
+        } catch (Exception e) {
+            assertThat("Unexpected exception: " + e, false);
+        }
+        return null;
+    }
+
+    @Test
+    public void testConfigRoundtrip() {
 
         // Create a test file to create the fingerprint
-        FileWriter fstream = new FileWriter("test.txt");
-        BufferedWriter out = new BufferedWriter(fstream);
-        out.write("Fingerprint");
-        out.close();
+        try {
+            FileWriter fstream = new FileWriter("test.txt");
+            BufferedWriter out = new BufferedWriter(fstream);
+            out.write("Fingerprint");
+            out.close();
+        } catch (Exception e) {
+            assertThat("Unexpected exception: " + e, false);
+        }
 
-        FreeStyleProject project = createFreeStyleProject();
+        final FreeStyleProject project = createJob(JOB1);
         CreateFingerprint before = new CreateFingerprint("test.txt");
         project.getBuildersList().add(before);
 
-        configRoundtrip(project);
+        try {
+            j.configRoundtrip(project);
+        } catch (Exception e) {
+            assertThat("Unexpected exception: " + e, false);
+        }
 
         CreateFingerprint after = project.getBuildersList().get(CreateFingerprint.class);
 
         // Verify that the build runs correctly and that the Fingerprints are created
-        assertNotSame(before,after);
-        assertEqualDataBoundBeans(before,after);
-        assertEquals(after.getTargets(), "test.txt");
-        FreeStyleBuild build = assertBuildStatusSuccess(project.scheduleBuild2(0));
+        assertThat(before, not(after));
+
+        try {
+            j.assertEqualDataBoundBeans(before,after);
+        } catch (Exception e) {
+            assertThat("Unexpected exception: " + e, false);
+        }
+        
+        assertThat(after.getTargets(), is(equalTo("test.txt")));
+        
+        FreeStyleBuild build = assertStatusAndGetBuild(project);
         String buildName = project.getName();
         Fingerprinter.FingerprintAction action = build.getAction(Fingerprinter.FingerprintAction.class);
         Collection<Fingerprint> fingerprints = action.getFingerprints().values();
         for (Fingerprint f: fingerprints) {
-            assertTrue(f.getOriginal().is(build));
-            assertTrue(f.getOriginal().getName().equals(buildName));
+            assertThat(f.getOriginal().is(build), is(true));
+            assertThat(f.getOriginal().getName().equals(buildName), is(true));
         }
     }
 }

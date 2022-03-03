@@ -62,7 +62,13 @@ public class CreateFingerprint extends Builder {
     @Override
     public boolean perform(AbstractBuild<?,?> build, Launcher launcher, BuildListener listener) throws InterruptedException {
         Fingerprinter fingerprinter = new Fingerprinter(this.targets, false);
-        return fingerprinter.perform(build, launcher, listener);
+        try {
+            fingerprinter.perform(build, launcher, listener);
+        } catch(InterruptedException|IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     @Extension
